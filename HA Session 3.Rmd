@@ -1,72 +1,86 @@
 ---
-title: "R Notebook"
-output: html_notebook
----
-
----
-title: "Ha Session 3"
+title: "Ha Session 3 Verbessert"
 output: html_notebook
 ---
 
 #Aufgabe1 Spielen Sie mit den Support- und Confidence-Werten. Was fällt Ihnen auf?
+Der Datensatz, der in der letzten Session aus Books, Book-Ratings und Users zusammengesetzt wurde, wird zu einer Tabelle aus "Book-Titel" und "User-ID" umgewandelt und in die transactions class gebracht. 
 
-Leider hat es hier nicht Funktioniert, den Bücher-Datensatz in die transactions class umzuwandeln. Mein Gedanke war, den zusammengelegten Datensatz der letzten Session auf "User-ID" und"Book-Title" zu reduzieren und dies in die transactions class umzuwandeln.Ich hab versucht den Datensatz direkt mit 
-trans <- as(Alle_Daten, "transactions") 
-umzuwandeln, was zu keinem Ergebniss führte. 
-Nach recherche im Internet habe ich unter anderem
-
-translist <- ddply(Alle_Daten2,c("`User-ID`"), 
-                       function(df1)paste(df1$`Book-Title`, 
-                       collapse = ","))
-und später noch
-
-trans <- as(split(translist[,"Book-title"], translist[,"User-ID"]), "transactions")
-
-ausprobiert, aber auch hier wurden jedes mal "0" Regeln erstellt. Um die Aufgabe zumindest bearbeiten zu können, habe ich stattdesen den "Groceries"-Datensatz verwendet, der ja bereits in der transactions class voriegt. 
-
-
-#Arules library und Datensatz laden
+#librarys und zusammengelegten Datensatz der letzten Session laden
 ```{r}
 library(arules)
-
-data("Groceries")
+library(readr)
+library(tidyverse)
+Alle_Daten <- read_csv("C:/Users/Data/Documents/data science/Data-Science-HAW/daten/Alle_Daten.csv")
+View(Alle_Daten)
 ```
 
-#Assoziationsregeln erstellen zum herumprobieren
+
+
+#Assoziationsregeln erstellen
 ```{r}
-groc.rules <- apriori(Groceries, parameter=list(supp=0.03, conf=0.1, 
-                                                target="rules"))
+i <- split(Alle_Daten$`Book-Title`, Alle_Daten$`User-ID`)
+txn <- as(i, "transactions")
+basket_rules <- apriori(txn, parameter = list(sup = 0.0015, conf = 0.01, minlen=2, target="rules"))
 ```
 ```{r}
-head(inspect(subset(groc.rules)), 20)
+myRules_Direct <- as(basket_rules, "data.frame")
+basket_rules_hi <- head(basket_rules, by = "lift", 100)
+head(myRules_Direct, 20)
 ```
-#Assoziationsregeln erstellen zum vergleichen
-```{r}
-groc.rules <- apriori(Groceries, parameter=list(supp=0.01, conf=0.1, 
-                                                target="rules"))
-```
-```{r}
-head(inspect(subset(groc.rules)), 20)
-```
-Wenn der Conidence Wert erhöht wird, nimmt die Anzahl der Treffer zwar merklich ab, dafür wirken die Treffer augenscheinlich sehr viel realistischer, als sie es bei einem kleinen Confidence Wert tun. 
+Ändert man die Werte, so fällt auf, dass sich die Anzeige der ausgegebenen Werte nicht ändert, wenn man nur den conidence-Wert verändert. Auch bei größeren Änderungen, wie zum Beispiel von 0.001 auf 0.01 oder 0.0001, änderte sich nichts.Veränderungen des support-Wertes hingegen hatten auch bei kleineren Änderungen deutliche Auswirkungen. Die Erhöhung von 0.0015 auf 0.002 lieferte andere Ergebnisse in der Ausgabe, die höhere coverage und count-Werte, aber niedrigere lift-Werte hatten und die Erhöhung auf 0.01 lieferte gar keine Ergebnisse mehr. Eine Verringerung auf 0.0001 lieferte hingegen mehr Regeln, als das Programm verarbeiten konnte. 
 
 #Aufgabe2 Wir haben jetzt alle Bewertungen drin, ergibt das Sinn?
 Da unter den Bewertungen viele ungültige Bewertungen von "0" enthalten sind, werden die Ergebnisse dadurch verfälscht. Diese Bewertungen mit einzubeziehen ist daher nicht sinnvoll.
 
+
 #Aufgabe3 Wie könnte eine bessere Lösung aussehen?
-Die Bewertungen unter einem Wert von "1" könnten herausgefiltert werden. Eine weitere Möglichkeit wäre, alle Bewertungen von 0 z.B. zu n.a. umzuwandeln.
+Man könnt durch zum Beispiel
+
+#```{r}
+#Alle_Daten <- Alle_Daten %>%
+#  filter(`Book-Rating` > 1)
+#```
+
+alle ungültigen Bewertungen aus dem Datensatz filtern.
 
 #Aufgabe4 Erstellen Sie eine Analyse, bei der nicht die Bücher, sondern die Autoren in den Transaktionen enthalten sind
-Diese Aufgabe konnte ich aus den in Aufgabe1 gennanten Gründen nicht durchführen. 
+Hierzu wird das selbe Vorgehen gewählt, wie in der ersten Aufgabe. Diesmal wird jedoch Alle_Daten$`Book-Title` durch  Alle_Daten$`Book-Author`ersetzt, um die Bewertungen der einzelnen Autoren darzustellen.
 
+```{r}
+i <- split(Alle_Daten$`Book-Author`, Alle_Daten$`User-ID`)
+txn <- as(i, "transactions")
+basket_rules <- apriori(txn, parameter = list(sup = 0.0015, conf = 0.01, minlen=2, target="rules"))
+```
+```{r}
+myRules_Direct <- as(basket_rules, "data.frame")
+basket_rules_hi <- head(basket_rules, by = "lift", 100)
+head(myRules_Direct, 20)
+```
 #Aufgabe5 Fällt Ihnen etwas in der Datenqualität auf?
-Ein Blick in den books-Datensatz zeigt, dass einige Autorennamen gleich sind, sich aber in der Schreibweise oder durch ein Sonderzeichen unterscheiden. 
+Die Datenqualität ist nicht sonderlich hoch, da einige der Autoren, wie zum Beispiel Sophie Kinsella, auf sich selbst verwiesen werden, da sie in unterschiedlichen Schreibweisen, in diesem Fall in Caps und in normaler Schreibweise, vorhanden sind.
 
 #Aufgabe6 Wie könnte man das mit regulären Ausdrücken beheben?
-Mit Regulären Ausdrücken können klare Regeln für die Darstellung von namen definiert werden, sodass Doppelungen von Namen durch Umlaute oder Groß-Klein-Schreibung verhindert werden können. 
+Mit Regulären Ausdrücken können klare Regeln für die Darstellung der Namen definiert werden, sodass Doppelungen von Namen durch Umlaute oder Groß-Klein-Schreibung verhindert werden können. 
+Zum Beispiel könnte man mit
 
-#Aufgabe7 Wie kann man nun noch sicherstellen, dass nur die Autoren weiterempfohlen werden, deren Bücher man auch (mehrheitlich) gut fand?
-Man könnte die Bewertungen und Nutzer-ID mit einbeziehen und die Autoren herausfiltern, bei denen man selbst eine hohe Bewertung vergeben hat.
+#```{r}
+#Alle_Daten <- Alle_Daten %>%
+#  mutate(`Book-Author` = str_to_lower(`Book-Author`))
+#```
+
+das Beispiel mit der CAPS-Schreibweise beheben.
+
+#Aufgabe7 Wie kann man nun noch sicherstellen, dass nur die Autoren weiterempfohlen werden, deren Bücher man auch (mehrheitlich) gut fand? 
+Man könnte nur Bewertungen in die Analyse einbeziehen, die eine Gewisse Höhe haben. Wenn man zum Beispiel eine Bewertung ab "7" als hoch ansieht, filtert man einfach mit
+
+#```{r}
+#Alle_Daten  %>%
+#  filter(`Book-Rating` > 6)
+#```
+
+alle guten Bewertungen heraus. Dadurch gibt es zwar deutlich weniger an Empfehlungen, dafür sind diese aber Relevanter, wenn man nach Büchern mit einer guten Bewertung sucht. 
+
 
 #Aufgabe8 Welche anderen Features wären sinnvoll?
-Genres mit einbeziehen, um genauere Vorschläge machen zu können. Außerdem könnte man das Erscheinungsdatum mit einbeziehen, um aktuellere Vorschläge auch zu neuerscheinungen machen zu können. 
+Genres mit einbeziehen, um genauere Vorschläge machen zu können. Außerdem könnte man das Erscheinungsdatum mit einbeziehen, um aktuellere Vorschläge zu neuerscheinungen ähnlicher Autoren machen zu können.
