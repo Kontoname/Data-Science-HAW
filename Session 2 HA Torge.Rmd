@@ -1,0 +1,155 @@
+---
+title: "Hausaufgabe Session 2"
+output: html_notebook
+---
+
+#Laden von Datensätzen und Librarys
+```{r}
+library(readr)
+
+ratings <- read_delim("~/data science/daten/BX-Book-Ratings.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+View(ratings)
+```
+```{r}
+books <- read_delim("~/data science/daten/BX-Books.csv", ";", 
+    escape_backslash = TRUE, escape_double = FALSE, 
+    trim_ws = TRUE)
+View(books)
+```
+```{r}
+library(tidyverse)
+```
+
+#Aufgabe 1
+Gibt es eine Korrelation zwischen Anzahl Bücher pro Publisher und Anzahl Ratings, die die Bücher eines Publishers erhalten? (hier müssen Sie wieder etwas Data Wrangling betreiben).
+
+#Selektion und Bereinigung 
+```{r}
+books <- books %>%
+  select(ISBN, Publisher) %>%
+  mutate(`Publisher` = str_to_lower(`Publisher`))
+```
+```{r}
+ratings$`Book-Rating`[ratings$`Book-Rating` == 0] <- NA
+```
+
+#Erstellung Datensatz Bücher pro Verlag
+```{r}
+books_per_pub <- books
+```
+```{r}
+books_per_pub <- books_per_pub %>%
+  group_by(Publisher) %>%
+  summarise(pub_sum_books = n()) 
+```
+
+#Erstellung Datensatz Anzahl Bewertung aller Verlagsbücher
+```{r}
+ratings_pub <- books %>%
+  left_join(ratings)
+```
+```{r}
+ratings_pub <- ratings_pub %>%
+  select(Publisher, ISBN, `Book-Rating`) 
+```
+
+```{r}
+ratings_pub <- ratings_pub %>%
+  group_by(Publisher) %>%
+  summarise(sum_ratings_pub = n())
+```
+
+#Zusammenführung der Datensätze
+```{r}
+books_and_ratings_pub <- books_per_pub %>%
+  left_join(ratings_pub)
+```
+
+
+#Korrelation ermitteln
+```{r}
+  plot(books_and_ratings_pub$pub_sum_books, books_and_ratings_pub$sum_ratings_pub)
+```
+```{r}
+cor.test(books_and_ratings_pub$pub_sum_books, books_and_ratings_pub$sum_ratings_pub)
+```
+Bei der Anzahl der Bücher pro Verlag und der Anzahl der Bewertungen aller verlagseigenen Bücher liegt der Korrelationskoeffizient bei r=0,87. Der Wert liegt somit über 0,8, womit er für eine starke Korrelation spricht.
+
+
+#Aufgabe 2
+Haben ältere Bücher mehr Ratings, weil sie mehr Zeit haben, um Ratings zu sammeln?
+
+#Erneuern der Datensätze
+```{r}
+ratings <- read_delim("~/data science/daten/BX-Book-Ratings.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+View(ratings)
+```
+```{r}
+books <- read_delim("~/data science/daten/BX-Books.csv", ";", 
+    escape_backslash = TRUE, escape_double = FALSE, 
+    trim_ws = TRUE)
+View(books)
+```
+#Selektion und Bereinigung
+```{r}
+books <- books %>%
+  select(ISBN, `Year-Of-Publication`)
+```
+```{r}
+ratings$`Book-Rating`[ratings$`Book-Rating` == 0] <- NA
+books$`Year-Of-Publication`[books$`Year-Of-Publication` == 0] <- NA
+```
+
+#Zusammenführung books und ratings
+```{r}
+books_year <- books %>%
+  left_join(ratings)
+```
+#Erstellung Datensatz Bewertungen nach Jahreszahl
+```{r}
+books_year <- books_year %>%
+  select(ISBN, `Year-Of-Publication`, `Book-Rating`)
+```
+
+```{r}
+books_year <- books_year %>%
+  group_by(`Year-Of-Publication`) %>%
+  summarise(sum_ratings_year = n())
+```
+```{r}
+books_year %>%
+  arrange(desc(sum_ratings_year))
+```
+
+#Korrelation ermitteln
+```{r}
+plot(books_year$`Year-Of-Publication`, books_year$sum_ratings_year)
+```
+```{r}
+cor.test(books_year$`Year-Of-Publication`, books_year$sum_ratings_year)
+```
+
+Die Darstellung zeigt, dass ältere Bücher trotz der zusätzlichen Zeit keine besseren Bewertungen erhalten haben. Ganz im Gegenteil steigt die Anzahl an Bewertungen mit der Jahreszahl rapide an.Ab den 2000er Jahren sinken die Bewertungen wieder rapide ab, aber da dies ein älterer Datensatz zu sein scheint,könnten die Jahreszahlen falsch eingetragen worden sein, sodass z.B. 2010 zu diesem Zeitpunkt noch in der Zukunft gelegen hätte.
+
+
+#Aufgabe 3
+Kann man mit einer linearen Regression etwas davon vorhersagen?
+
+Eine Vorhersage für die 2. Aufgabe mithilfe einer linearen Regression wäre nicht sinnvoll. Der Korrelationskoeffizient ist mit etwa 0,2 sehr gering und der optische Verlauf der Daten lässt ehr auf einen exponentiellen Verlauf schließen, wmoit eine lineare Regression keine Sinnvolle Vorhersage treffen könnte. 
+
+Für die erste Aufgabe hingegen wäre eine Vorhersage mittels einer linearen Regression möglich, da hier ein linearer Zusammenhang zwischen den Datensätzen gegeben ist.
+
+#Lineare Regression zu Aufgabe 1
+```{r}
+  reg <- lm(books_and_ratings_pub$sum_ratings_pub ~ books_and_ratings_pub$pub_sum_books)
+  plot(books_and_ratings_pub$pub_sum_books, books_and_ratings_pub$sum_ratings_pub)
+  abline(reg)
+```
+```{r}
+summary(reg)
+```
+Die Regressionsgerade liefert nun eine Vorhersage dafür, bei wie vielen verlagseigenen Büchern wie viele Bewertungen erhalten werden. Über die Formel 
+5,08345x - 20,94374
+lässt sich eine Vorhersage treffen, indem man für x die gewünschte Anzahl an Büchern eines Verlages einsetzt. Da dies nur eine ungefähre Tendenz ist, sollten diese Werte aber mit Vorsicht genossen werden.
