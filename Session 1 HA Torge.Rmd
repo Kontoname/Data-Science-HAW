@@ -1,0 +1,232 @@
+---
+title: "Hausaufgabe 1 Torge Plückhahn"
+output: html_notebook
+---
+
+
+#Importieren der Datensätze
+```{r}
+library(readr)
+
+ratings <- read_delim("~/data science/daten/BX-Book-Ratings.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+View(ratings)
+```
+```{r}
+books <- read_delim("~/data science/daten/BX-Books.csv", ";", 
+    escape_backslash = TRUE, escape_double = FALSE, 
+    trim_ws = TRUE)
+View(books)
+```
+
+#Tidyverse Laden
+```{r}
+library(tidyverse)
+```
+
+#Aufgabe 1 + 2
+Welche Bücher sind am besten bewertet?
+Sollte die Anzahl der Bewertungen auch mit reinspielen? 
+
+
+Um die Qualität eines Buches wirklich abschätzen zu können, halte ich die Anzahl der Beweretungen durchaus für wichtig. Wenn ein Buch nur 2 Bewertungen hat, die beide perfekt ausfallen, aber 100 weitere Leser das Buch schlecht fanden, ohne dabei eine Bewertung abzugeben, wäre das Buch zwar gut bewertet, aber wahrscheinlich nicht gut.
+Außerdem reicht es für mich nicht aus, zu betrachten, welche Bücher eine hohe Bewertung erhalten haben, weil diese Bücher ebenfalls schlechte Bewertungen erhalten haben könnten. Daher sollen für die einzelnen Titel sowohl die Anzahl der Bewertungen, als auch die durschnittliche Bewertung angezeigt werden.
+
+
+
+```{r}
+ratings <- ratings %>%
+  filter(`Book-Rating` > 0)
+  
+```
+
+
+```{r}
+books %>%
+  select(`Book-Title`)%>%
+  mutate(`Book-Title` = str_to_lower(`Book-Title`))
+```
+
+
+#Neue Tabelle für die Anzahl der Bewertungen
+
+```{r}
+ratings_amount <- ratings 
+
+```
+```{r}
+ratings_amount <- ratings_amount %>%
+group_by(ISBN) %>%
+  summarise(sum_ratings = n())
+
+```
+
+#Neue Tabelle für den Durschnitt der Bewertungen
+```{r}
+ratings_avarage <- ratings 
+
+```
+```{r}
+ratings_avarage <- ratings_avarage %>%
+group_by(ISBN) %>%
+  summarize(av_ratings = mean(`Book-Rating`, na.rm=TRUE))
+```
+
+#Zusammenführung von Anzahl und Durchschnitt
+
+```{r}
+rating_amount_av <- ratings_amount %>%
+  left_join(ratings_avarage)
+```
+#Zusammenführung mit books
+
+```{r}
+books_complete <- books %>%
+  left_join(rating_amount_av)
+```
+#Am Besten Bewertete Bücher
+In der folgenden Tabelle werden jetzt ISBN, Titel, Anzahl der Bewertungen und die durchschnittliche Bewertung jedes Titels angezeigt. Damit sich bei den besten Büchern eine klare Tendenz bei der Bewertung zeigen kann, habe ich nur Titel mit mindestens 100 Bewertungen zugelassen.Interessanterweise gehen damit die ersten sechs Plätze an "Harry Potter", gefolgt von "Enders Game" und "The Perks of Being a Wallflower". 
+
+```{r}
+books_complete <- books_complete %>%
+  select(`ISBN`,`Book-Title`,`sum_ratings`,`av_ratings`)
+```
+
+
+```{r}
+books_complete %>%
+  group_by(ISBN) %>%
+  filter(sum_ratings > 100) %>%
+  arrange(desc(av_ratings))
+```
+
+
+
+#Aufgabe 3
+Welche Autoren sind am besten bewertet?
+
+Das Vorgehen ist bei dieser Aufgabe ähnlich, auch hier wird wieder die Anzahl der Bewertungen betrachtet, die ein Autor erhalten hat, sowie die durchschnittliche Bewertung.
+
+#Erneuern der Datensätze
+```{r}
+ratings <- read_delim("~/data science/daten/BX-Book-Ratings.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+View(ratings)
+```
+
+```{r}
+books <- read_delim("~/data science/daten/BX-Books.csv", ";", 
+    escape_backslash = TRUE, escape_double = FALSE, 
+    trim_ws = TRUE)
+View(books)
+```
+
+#Zusammenführen books und ratings
+```{r}
+books_w_ratings <- books %>%
+  left_join(ratings)
+```
+```{r}
+books_w_ratings <- books_w_ratings %>%
+  select(ISBN,`Book-Title`,`Book-Author`,`Book-Rating`) 
+```
+
+#Neue Tabelle Anzahl Bewertungen eines Autors
+```{r}
+sum_rating_author <- books_w_ratings
+```
+
+```{r}
+sum_rating_author <- sum_rating_author %>%
+  group_by(`Book-Author`) %>%
+  summarise(author_sum_ratings = n()) 
+```
+
+#Neue Tabelle durchschnittliche Bewertung eines Autors
+```{r}
+av_rating_author <- books_w_ratings
+```
+
+```{r}
+av_rating_author <- av_rating_author %>%
+  group_by(`Book-Author`) %>%
+  summarize(author_av_ratings = mean(`Book-Rating`, na.rm=TRUE))
+```
+
+#Zusammenführen Anzahl und Durchschnitt
+```{r}
+author_beste <- sum_rating_author %>%
+  left_join(av_rating_author)
+```
+#Ergebnis Beste Autoren
+Wie in der ersten AUfgabw werden auch hier Autor, Anzahl Bewertungen und Durchschnittsbewertung betrachtet, wobei die mindestanzahl an Bewertungen auch hier wieder bei 100 liegt.Auf Platz eins ist damit "Clamp", gefolgt von "Shel Silverstein" und "Bill Watterson".
+
+```{r}
+author_beste %>%
+  group_by(`Book-Author`) %>%
+  filter(author_sum_ratings > 100) %>%
+  arrange(desc(author_av_ratings))
+```
+#Aufgabe 4
+Welcher Verlag hat die besten Bücher?
+
+Da sich dieser Lösugsweg erneut anbietet, werde ich auch hier das Trio aus Verlag, Anzahl und Durchschnitt verwenden.
+
+#Erneutes erneuern der Datensätze
+```{r}
+ratings <- read_delim("~/data science/daten/BX-Book-Ratings.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+View(ratings)
+```
+
+```{r}
+books <- read_delim("~/data science/daten/BX-Books.csv", ";", 
+    escape_backslash = TRUE, escape_double = FALSE, 
+    trim_ws = TRUE)
+View(books)
+```
+
+#Zusammenführen books und ratings
+```{r}
+books_w_ratings <- books %>%
+  left_join(ratings)
+```
+
+
+#Neue Tabelle Anzahl Bewertungen eines Verlages
+```{r}
+sum_rating_publisher <- books_w_ratings
+```
+
+```{r}
+sum_rating_publisher <- sum_rating_publisher %>%
+  group_by(`Publisher`) %>%
+  summarise(publisher_sum_ratings = n()) 
+```
+
+#Neue Tabelle durchschnittliche Bewertung eines Verlages
+```{r}
+av_rating_publisher <- books_w_ratings
+```
+
+```{r}
+av_rating_publisher <- av_rating_publisher %>%
+  group_by(`Publisher`) %>%
+  summarize(publisher_av_ratings = mean(`Book-Rating`, na.rm=TRUE))
+```
+
+#Zusammenführen Anzahl und Durchschnitt
+```{r}
+publisher_beste <- sum_rating_publisher %>%
+  left_join(av_rating_publisher)
+```
+
+#Ergebnis Beste Verlage
+Wie schon zuvor werden Verlag, Anzahl Bewertungen und Durchschnittsbewertung mit einer Mindestanzahl an Bewertungen von 100 betrachtet.Auf Platz eins ist damit "Five Star (ME)", gefolgt von "TokyoPop" und "VIZ LLC".
+
+```{r}
+publisher_beste %>%
+  group_by(`Publisher`) %>%
+  filter(publisher_sum_ratings > 100) %>%
+  arrange(desc(publisher_av_ratings))
+```
