@@ -1,0 +1,199 @@
+---
+title: "Session 4 HA"
+output: html_notebook
+---
+
+#Libraries und Datensatz laden
+```{r}
+library(tidyverse)
+library(e1071)
+library(caret)
+library(pROC)
+library(rpart)
+library(rpart.plot)
+```
+```{r}
+titanic <- read_delim("C:/Users/Data/Documents/data science/Data-Science-HAW/daten/titanic.csv", ";", 
+    escape_double = FALSE, trim_ws = TRUE)
+```
+
+#Aufgabe1 Bitte erstellen Sie ein Notebook mit weiteren Features (Alter, Geschlecht und Klasse sind als Beispiel in meinem Notebook auf GitHub)
+Neben Alter, Geschlecht und Klasse, die ja bereits einen sehr hohen Einfluss auf das Überleben auf der Titanic hatten, betrachte ich ebenfalls den Ticketpreis und den Ort, an dem das Schiff betreten wurde. Wichtige/Reiche Menschen könnten an manchen Stellen priorisiert worden sein und möglicherweise hatte der Bereich des Schiffes, in dem man untergebracht war, etwas mit den Überlebenschancen zu tun..
+
+#Datensatz mit eigenen Features vorbereiten
+```{r}
+(titanic.df <- titanic %>%
+  select(survived,pclass,sex,age,fare,embarked) %>%
+   mutate(survived = as.factor(survived))%>%
+  mutate(embarked = as.factor(embarked))) 
+```
+
+```{r}
+titanic.df <- titanic.df %>%
+  mutate(fare = as.numeric(str_replace(fare,",","."))) %>%
+  mutate(age = as.numeric(str_replace(age,",",".")))
+```
+
+```{r}
+titanic.df <- na.omit(titanic.df)
+```
+
+```{r}
+titanic.df <- titanic.df %>%
+  mutate(sex = ifelse(sex == "female", 1, 0)) 
+```
+
+#Aufgabe2 Was sind die Unterschiede in der Performance der Algorithmen?
+Um die Performance der Algorithmen betrachten zu können, lasse ich zunächst jeden Algorithmus mit dem neuen Datensatz aus Aufgabe 1 Durchlaufen.
+
+#Durchführung SVM-Klassifikation
+```{r}
+set.seed(393)
+inTrain <- createDataPartition(
+  y = titanic.df$survived,
+  p = .8,
+  list = FALSE)
+training <- titanic.df[ inTrain,]
+testing  <- titanic.df[-inTrain,]
+```
+
+```{r}
+model.svm <- svm(formula = survived ~ ., data = training, probability=TRUE)
+summary(model.svm)
+pred <- predict(model.svm, testing[,-1], probability = TRUE)
+```
+
+```{r}
+(test.results <- cbind(pred, testing))
+```
+```{r}
+head(attr(pred, "probabilities"))
+```
+
+```{r}
+confusionMatrix(pred,testing$survived)
+```
+
+
+```{r}
+pROC_obj <- roc(as.numeric(test.results$survived), as.numeric(test.results$pred),
+            smoothed = TRUE,
+            ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+            plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+            print.auc=TRUE, show.thres=TRUE)
+```
+
+#Naive Bayes
+
+#Daten vorbereiten
+Zunächst müssen alle Datensätze zu factors umgewandelt werden. Da die Ticketkosten sich kaum doppeln und es zu viele level geben würde, werden die Kosten in die Kategorien "cheap" (0-50), "normal" (51-100), "expensive" (101-200) und "luxury" (201+) unterteilt. Diese Kategorien werden anschließend in factors umgewandelt. Die Wahl der Kategoriegrenzen wurde willkürlich gewählt, da eine sinnvolle Einschätzung der Ticketpreise ein gewisses Maß an Wissen über die damalige finanzielle Situation der Menschen erfordern würde.
+```{r}
+training$fare_category[training$fare >= 0] = "cheap"
+training$fare_category[training$fare >= 51 ] = "normal"
+training$fare_category[training$fare >= 101] = "expensive"
+training$fare_category[training$fare >= 201 ] = "luxury"
+training$fare_category = factor(training$fare_category,
+                    levels=c("cheap", "normal", "expensive","luxury" ))
+training$fare <- NULL
+```
+```{r}
+testing$fare_category[testing$fare >= 0] = "cheap"
+testing$fare_category[testing$fare >= 51 ] = "normal"
+testing$fare_category[testing$fare >= 101] = "expensive"
+testing$fare_category[testing$fare >= 201 ] = "luxury"
+testing$fare_category = factor(testing$fare_category,
+                    levels=c("cheap", "normal", "expensive","luxury" ))
+testing$fare <- NULL
+```
+
+
+
+```{r}
+my_training <- training %>%
+  mutate(sex = as.factor(sex))%>%
+  mutate(pclass = as.factor(pclass)) %>%
+  mutate(age = as.factor(ifelse(age < 14, "child", "adult"))) 
+```
+
+#Durchführung des Algorithmus
+```{r}
+model <- naiveBayes(survived ~ ., data = my_training)
+model
+```
+
+
+```{r}
+my_testing <- testing %>%
+  mutate(sex = as.factor(sex)) %>%
+  mutate(pclass = as.factor(pclass))%>%
+  mutate(age = as.factor(ifelse(age < 14, "child", "adult"))) 
+pred <- predict(model, my_testing)
+table(pred, my_testing$survived)
+```
+
+```{r}
+(test.results <- cbind(pred, my_testing))
+```
+
+```{r}
+test.results <- test.results %>%
+  mutate(pred = as.numeric(pred))
+pROC_obj <- roc(as.numeric(as.factor(test.results$survived)), test.results$pred,
+            smoothed = TRUE,
+            ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+            plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+            print.auc=TRUE, show.thres=TRUE)
+
+```
+
+# Decision Tree
+```{r}
+tree<- rpart(survived~., data = training, method = 'class')
+rpart.plot(tree)
+```
+```{r}
+dt_results <- predict(tree, testing[,-1], type = 'prob')
+head(model.results.dt <- cbind(testing,dt_results),500)
+```
+```{r}
+test.results2 <- test.results %>%
+  mutate(pred = ifelse(pred>=0.5,1,0))
+table(test.results2$pred, testing$survived)
+```
+
+
+```{r}
+pROC_obj <- roc(model.results.dt$survived,model.results.dt$`1`,
+            smoothed = TRUE,
+            ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+            plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+            print.auc=TRUE, show.thres=TRUE)
+```
+
+#Performance der Algorithmen
+
+#Support Vector Machines
+AUC: 0,788
+
+Prediction   0   1
+         0 120  34
+         1   3  51
+
+#Naive Bayes
+AUC: 0,750
+
+pred   0   1
+   0 102  28
+   1  21  57
+
+#Decision Tree
+AUC: 0,835
+
+     0   1
+  1 123  85
+
+
+Vergleicht man den AUC-Wert der der Algorithmen für diesen Datensatz, so fällt auf, dass der Decision Tree mit Abstand den besten Wert hat, wohingegen Naive Bayes am schlechtesten abgeschnitten hat. Der SVM-Algorithmus hat dabei viele Verstorbene falsch vorhergesagt, die eigentlich überlebt haben. Beim Naive Bayes waren es sogar in beiden Fällen mehr als 20 falsche Vorhersagen, sowohl bei den Überlebenden, als auch bei den Verstorbenen. 
+
+#Aufgabe3 Finden Sie Erklärungen dafür.
+Der Hauptgrund wird vermutlich in der Qualität meines Datensatzes liegen. Die Variablen embarked und fare scheinen keinen großen Einfluss auf die Überlebenschancen gehabt zu haben, was die Performance der Algorithmen behindert. Gerade Naive Bayes, bei dem die Variablen unabhängig voneinander betrachtet werden, scheint bei der Gesamtberechnung der Überlebenschancen sehr anfällig für unsinnige Variablen zu sein. Dazu kommt, dass ich die fare-Werte für den Naive Bayes Algorithmuseh willkürlich in Kategorien zusammengefasst habe, was die Performance von Naive Bayes vermutlich auch eingeschränkt hat. 
