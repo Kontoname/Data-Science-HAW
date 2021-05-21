@@ -1,0 +1,97 @@
+---
+title: "Session 5 HA"
+output: html_notebook
+---
+
+#Aufgabe1 Versuchen Sie die Leser aus dem Buch-Datenset zu clustern: Welche Bücher gehören in welches Cluster?
+
+#Laden der Librarys und des Datensatzes
+```{r}
+library(tidyverse)
+library(cluster)
+Alle_Daten <- read_csv("C:/Users/Data/Documents/data science/Data-Science-HAW/daten/Alle_Daten.csv")
+View(Alle_Daten)
+```
+
+
+#Vorbereitung des Datensatzes 
+Um die Leser zu clustern, reduziere ich den Datensatz auf die Variablen "ISBN", "User-ID", "Book-Rating", "Publisher" und "Book-Author", da dies in meinen Augen die Aussagekräftigsten Werte sind, um Ähnlichkeiten zwischen den Nutzern feststellen zu können. Das Alter wäre ebenfalls eine Alternative, aber da der Datesatz viele NULL Einträge beim Alter besitzt, habe ich mich dagegen entschieden. Um meinen PC nicht zu überlasten, habe ich nur die ersten 1000 Bücher des Datensatzes betrachtet und davon alle Bücher mit einer Bewertung von mindestens 8 verwendet. 
+
+```{r}
+users <- Alle_Daten %>%
+  select(`User-ID`, ISBN, `Book-Rating`, Publisher, `Book-Author`) %>%
+  mutate(ISBN = as.factor(ISBN))%>%
+  mutate(Publisher = as.factor(Publisher))%>%
+  mutate(`Book-Author` = as.factor(`Book-Author`))
+users$`Book-Rating`[users$`Book-Rating` == 0] <- NA
+```
+Um mit den Variablen "Publisher" und "Book-Author" arbeiten zu können, wandle ich sie erst in Factors und die Factors anschließend in numerische Werte um. Die ISBN wird ebenfalls als Faktor und anschließend als numerischer Wert umgewandelt, um die Menge der ausgewählten Bücher leichter einzugrenzen. Alle ungültigen Einträge mit einer Bewertung von "0", sowie alle sonstigen NAs werden entfernt.
+
+```{r}
+users <- users %>%
+  drop_na() %>%
+  mutate(Publisher = as.numeric(Publisher))%>%
+  mutate(ISBN = as.numeric(ISBN))%>%
+  mutate(`Book-Author` = as.numeric(`Book-Author`))%>%
+  filter(`ISBN` < 1000)%>%
+  filter(`Book-Rating` >= 8)%>%
+  unique()
+```
+
+#Skalierung der Werte
+```{r}
+users.scaled <- as.data.frame(scale(users))
+```
+
+#Screen Test
+```{r}
+wss <- (nrow(users.scaled))*sum(apply(users.scaled,2,var))
+  for (i in 2:10) wss[i] <- sum(kmeans(users.scaled,
+                                       centers=i)$withinss)
+plot(1:10, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+```
+#Cluster Dendrogramm
+```{r}
+users.dist <- dist(users.scaled, method = "euclidean")
+users.hc <- hclust(users.dist, method = "ward.D2")
+plot(users.hc)
+groups <- cutree(users.hc, k=3)
+rect.hclust(users.hc, k=3, border="red")
+```
+
+#Festlegung von k
+```{r}
+k.means.fit <- kmeans(users.scaled, 3) 
+```
+
+#Anzahl der Datenpunkte pro cluster
+```{r}
+k.means.fit$size
+```
+#K-means cluster plot
+```{r}
+clusplot(users, k.means.fit$cluster, color=TRUE, shade=TRUE,
+labels=4, lines=0, main="K-means cluster plot")
+```
+
+
+#cluster der User
+```{r}
+user_cluster <- as.data.frame(cbind(users$`User-ID`, k.means.fit$cluster)) %>%
+  rename(`User-ID` = V1, cluster = V2)%>%
+  left_join(Alle_Daten)
+user_cluster$`Book-Rating`[user_cluster$`Book-Rating` == 0] <- NA
+user_cluster <- user_cluster  %>%
+  drop_na()%>%
+  unique()
+user_cluster
+```
+#Cluster der Bücher
+```{r}
+booktitle_cluster <- user_cluster %>%
+  select( `Book-Title`, cluster)
+booktitle_cluster
+```
+Ein Blick auf die Anzahl der Datenpunkte pro cluster zeigt bereits, dass zwei der Cluster sehr viele Punkte beinhalten, während das dritte cluster nur wenige beinhaltet.Außerdem überscheinden sich die zwei großen cluster stark, wodurch sehr viele Bücher nicht eindeutig einzuordnen sind. Die Hypothese, dass sich die User anhand der von ihnen gelesenen Bücher clustern lassen, lässt sich hier daher nicht bestätigen.   
+
