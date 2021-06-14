@@ -1,0 +1,74 @@
+---
+title: "Shiny App Code"
+output: html_notebook
+---
+
+#Aufgabe1 Eine fertige App auf shinyapps.io
+
+#Laden der Librarys und des Modells
+
+library(e1071)
+library(shiny)
+
+model.svm <- readRDS('titanic.svm.rds')
+
+#Erstellung des User Interface
+ui <- fluidPage(
+    
+    
+    titlePanel("Titanic-Überlebenstest"),
+    
+    
+    sidebarLayout(
+        
+        
+        sidebarPanel(
+            
+            #Erstellung eines Auswahlfensters für die Passagier-Klasse 
+            selectInput("pclass", selected = NULL, "Klasse auf der Titanic:",
+                        c("1. Klasse" = 1, 
+                          "2. Klasse" = 2,
+                          "3. Klasse" = 3)),
+            
+            #Erstellung eines Auswahlfensters für das Geschlecht 
+            selectInput("sex", selected = NULL, "Geschlecht:",
+                        c("Männlich" = 0, 
+                          "Weiblich" = 1)),
+            
+            #Erstellung eines Sliders für das Alter
+            sliderInput("age","Alter:",
+                        min = 0, max = 80,
+                       value = 1),
+                        
+            actionButton("action", label = "Überlebenscheck")
+            
+        ),
+        
+        #Main Panel mit Output und kurzer Zuordnung der Ergebnisse
+        mainPanel(
+            h4("x1 = Überlebenswahrscheinlichkeit, x0 = Sterbewahrscheinlichkeit"),
+            
+            tableOutput("value1")
+            
+        )
+    )
+)
+
+#Definition des Servers
+server <- function(input, output, session) {
+    
+    observeEvent(input$action, {
+        pclass <- as.numeric(input$pclass)
+        sex <- as.numeric(input$sex)
+        age <- input$age
+        data <- data.frame(pclass,sex,age)
+        result <- predict(model.svm, data, probability = TRUE)
+        my_result <- data.frame(attr(result, "probabilities"))
+        output$value1 <- renderTable(my_result)
+    }
+)
+    
+}
+
+
+shinyApp(ui, server)
